@@ -8,3 +8,8 @@ dependencies = [
     "comtypes>=1.4.16",
     "pycaw>=20251023",
 ]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.21.0",
+]
