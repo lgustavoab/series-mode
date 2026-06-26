@@ -1,6 +1,9 @@
 # Ambiente virtual local
 .venv/
 
+# Configurações locais do app
+config.json
+
 # Cache do Python
 __pycache__/
 *.py[cod]
@@ -28,4 +31,3 @@ Thumbs.db
 # Arquivos temporários
 *.log
 *.tmp
-

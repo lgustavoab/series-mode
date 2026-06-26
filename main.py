@@ -1,8 +1,10 @@
 import ctypes
+import json
 import os
 import subprocess
 import time
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox, ttk
 
 from comtypes import CLSCTX_ALL
@@ -43,6 +45,194 @@ TEMPO_AUDIO_PARA_ARMAR = 5
 # Primeiro ele espera detectar áudio real por alguns segundos.
 
 
+ACOES_VALIDAS = ("Desligar", "Suspender", "Hibernar")
+# Ações finais permitidas na interface.
+
+
+# =====================================================
+# ARQUIVO DE CONFIGURAÇÃO
+# =====================================================
+# O config.json guarda as últimas configurações usadas.
+#
+# Ele fica na mesma pasta do main.py.
+# Assim, quando o programa abre novamente, ele recupera:
+#   - tempo sem áudio
+#   - tempo sem mouse/teclado
+#   - aviso final
+#   - modo teste
+#   - ação final
+
+
+CONFIG_FILE = Path(__file__).with_name("config.json")
+
+
+DEFAULT_CONFIG = {
+    "tempo_sem_audio_minutos": 30,
+    "tempo_sem_interacao_minutos": 5,
+    "aviso_segundos": 60,
+    "modo_teste": True,
+    "acao_final": "Desligar",
+}
+
+
+def converter_numero_config(
+    valor,
+    padrao: float,
+    *,
+    permite_zero: bool,
+) -> float:
+    # Converte valores vindos do config.json para número.
+    #
+    # Se o arquivo estiver com valor inválido, usa o padrão.
+    # Exemplo:
+    #   "30" vira 30.0
+    #   "2,5" vira 2.5
+    #   "abc" volta para o padrão
+
+    try:
+        numero = float(str(valor).replace(",", "."))
+    except (TypeError, ValueError):
+        return padrao
+
+    if permite_zero:
+        if numero < 0:
+            return padrao
+    else:
+        if numero <= 0:
+            return padrao
+
+    return numero
+
+
+def converter_bool_config(valor, padrao: bool) -> bool:
+    # Converte o valor do modo teste vindo do config.json.
+    #
+    # Normalmente ele será True ou False.
+    # Esta função também aceita strings como "true", "false", "sim" e "não".
+
+    if isinstance(valor, bool):
+        return valor
+
+    if isinstance(valor, str):
+        texto = valor.strip().lower()
+
+        if texto in {"true", "1", "sim", "s", "yes", "y"}:
+            return True
+
+        if texto in {"false", "0", "nao", "não", "n", "no"}:
+            return False
+
+    return padrao
+
+
+def formatar_valor_campo(valor) -> str:
+    # Formata números para aparecerem de forma mais limpa na interface.
+    #
+    # Exemplo:
+    #   30.0 aparece como "30"
+    #   2.5 aparece como "2.5"
+
+    try:
+        numero = float(valor)
+    except (TypeError, ValueError):
+        return str(valor)
+
+    if numero.is_integer():
+        return str(int(numero))
+
+    return str(numero)
+
+
+def normalizar_configuracoes(config: dict) -> dict:
+    # Garante que as configurações carregadas sejam válidas.
+    #
+    # Isso evita erro se o config.json for editado manualmente
+    # ou ficar com algum valor quebrado.
+
+    tempo_sem_audio = converter_numero_config(
+        config.get("tempo_sem_audio_minutos"),
+        DEFAULT_CONFIG["tempo_sem_audio_minutos"],
+        permite_zero=False,
+    )
+
+    tempo_sem_interacao = converter_numero_config(
+        config.get("tempo_sem_interacao_minutos"),
+        DEFAULT_CONFIG["tempo_sem_interacao_minutos"],
+        permite_zero=True,
+    )
+
+    aviso_segundos = converter_numero_config(
+        config.get("aviso_segundos"),
+        DEFAULT_CONFIG["aviso_segundos"],
+        permite_zero=False,
+    )
+
+    modo_teste = converter_bool_config(
+        config.get("modo_teste"),
+        DEFAULT_CONFIG["modo_teste"],
+    )
+
+    acao_final = str(config.get("acao_final", DEFAULT_CONFIG["acao_final"]))
+
+    if acao_final not in ACOES_VALIDAS:
+        acao_final = DEFAULT_CONFIG["acao_final"]
+
+    return {
+        "tempo_sem_audio_minutos": tempo_sem_audio,
+        "tempo_sem_interacao_minutos": tempo_sem_interacao,
+        "aviso_segundos": int(aviso_segundos),
+        "modo_teste": modo_teste,
+        "acao_final": acao_final,
+    }
+
+
+def carregar_configuracoes_salvas() -> dict:
+    # Carrega as configurações salvas no config.json.
+    #
+    # Se o arquivo não existir, usa os valores padrão.
+    # Se o arquivo estiver inválido/corrompido, também usa os valores padrão.
+    #
+    # O merge com DEFAULT_CONFIG garante que, se no futuro adicionarmos
+    # novas opções, o programa continue funcionando mesmo com config antigo.
+
+    if not CONFIG_FILE.exists():
+        return DEFAULT_CONFIG.copy()
+
+    try:
+        with CONFIG_FILE.open("r", encoding="utf-8") as file:
+            config = json.load(file)
+
+        if not isinstance(config, dict):
+            return DEFAULT_CONFIG.copy()
+
+        config_completa = {**DEFAULT_CONFIG, **config}
+        return normalizar_configuracoes(config_completa)
+
+    except (OSError, json.JSONDecodeError):
+        return DEFAULT_CONFIG.copy()
+
+
+def salvar_configuracoes(config: dict) -> bool:
+    # Salva as configurações atuais no config.json.
+    #
+    # Retorna True se salvou corretamente.
+    # Retorna False se houve algum erro de escrita.
+    #
+    # Usamos ensure_ascii=False para manter acentos legíveis.
+    # Usamos indent=4 para o arquivo ficar fácil de ler e editar.
+
+    try:
+        config_normalizada = normalizar_configuracoes(config)
+
+        with CONFIG_FILE.open("w", encoding="utf-8") as file:
+            json.dump(config_normalizada, file, ensure_ascii=False, indent=4)
+
+        return True
+
+    except OSError:
+        return False
+
+
 # =====================================================
 # DETECÇÃO DE INATIVIDADE DO WINDOWS
 # =====================================================
@@ -63,6 +253,7 @@ class LASTINPUTINFO(ctypes.Structure):
 
 def tempo_sem_mouse_teclado() -> float:
     # Retorna há quantos segundos o usuário não mexe no mouse ou teclado.
+
     info = LASTINPUTINFO()
     info.cbSize = ctypes.sizeof(LASTINPUTINFO)
 
@@ -104,6 +295,7 @@ class MonitorAudio:
         #
         # Valores próximos de 0.00000 indicam silêncio.
         # Valores maiores indicam que existe áudio saindo.
+
         try:
             return float(self.meter.GetPeakValue())
         except Exception:
@@ -136,19 +328,38 @@ class ModoSerieApp:
         self.aviso_ativo = False
         self.contagem_aviso = 60
 
+        # Carrega as configurações salvas no config.json.
+        # Se o arquivo não existir, usa DEFAULT_CONFIG.
+        self.config_salva = carregar_configuracoes_salvas()
+
         # Configurações que serão lidas da interface ao iniciar.
-        self.tempo_sem_audio_para_desligar = 30 * 60
-        self.tempo_sem_mouse_teclado = 5 * 60
-        self.tempo_aviso_antes_desligar = 60
-        self.modo_teste = True
-        self.acao_final = "Desligar"
+        self.tempo_sem_audio_para_desligar = (
+            float(self.config_salva["tempo_sem_audio_minutos"]) * 60
+        )
+        self.tempo_sem_mouse_teclado = (
+            float(self.config_salva["tempo_sem_interacao_minutos"]) * 60
+        )
+        self.tempo_aviso_antes_desligar = int(self.config_salva["aviso_segundos"])
+        self.modo_teste = bool(self.config_salva["modo_teste"])
+        self.acao_final = str(self.config_salva["acao_final"])
 
         # Variáveis da interface.
-        self.var_tempo_audio = tk.StringVar(value="30")
-        self.var_tempo_interacao = tk.StringVar(value="5")
-        self.var_tempo_aviso = tk.StringVar(value="60")
-        self.var_modo_teste = tk.BooleanVar(value=True)
-        self.var_acao_final = tk.StringVar(value="Desligar")
+        # Elas já começam preenchidas com os valores salvos.
+        self.var_tempo_audio = tk.StringVar(
+            value=formatar_valor_campo(self.config_salva["tempo_sem_audio_minutos"])
+        )
+        self.var_tempo_interacao = tk.StringVar(
+            value=formatar_valor_campo(
+                self.config_salva["tempo_sem_interacao_minutos"]
+            )
+        )
+        self.var_tempo_aviso = tk.StringVar(
+            value=formatar_valor_campo(self.config_salva["aviso_segundos"])
+        )
+        self.var_modo_teste = tk.BooleanVar(
+            value=bool(self.config_salva["modo_teste"])
+        )
+        self.var_acao_final = tk.StringVar(value=str(self.config_salva["acao_final"]))
 
         self.criar_interface()
 
@@ -213,7 +424,7 @@ class ModoSerieApp:
         self.combo_acao = ttk.Combobox(
             frame_config,
             textvariable=self.var_acao_final,
-            values=["Desligar", "Suspender", "Hibernar"],
+            values=ACOES_VALIDAS,
             state="readonly",
             width=17,
         )
@@ -330,7 +541,7 @@ class ModoSerieApp:
     # =====================================================
 
     def ler_configuracoes_da_interface(self) -> bool:
-        # Lê e valida os valores digitados na interface.
+        # Lê, valida e salva os valores digitados na interface.
         #
         # Retorna True se estiver tudo correto.
         # Retorna False se algum campo estiver inválido.
@@ -372,6 +583,25 @@ class ModoSerieApp:
         self.tempo_aviso_antes_desligar = tempo_aviso_seg
         self.modo_teste = self.var_modo_teste.get()
         self.acao_final = self.var_acao_final.get()
+
+        config_atual = {
+            "tempo_sem_audio_minutos": tempo_audio_min,
+            "tempo_sem_interacao_minutos": tempo_interacao_min,
+            "aviso_segundos": tempo_aviso_seg,
+            "modo_teste": self.modo_teste,
+            "acao_final": self.acao_final,
+        }
+
+        salvou = salvar_configuracoes(config_atual)
+
+        if not salvou:
+            messagebox.showwarning(
+                "Configuração não salva",
+                (
+                    "O monitoramento será iniciado, mas não foi possível "
+                    "salvar as configurações no config.json."
+                ),
+            )
 
         return True
 
@@ -644,6 +874,7 @@ class ModoSerieApp:
 
     def formatar_tempo(self, segundos: float) -> str:
         # Converte segundos em formato MM:SS.
+
         segundos = int(max(0, segundos))
         minutos = segundos // 60
         resto = segundos % 60
@@ -654,6 +885,7 @@ class ModoSerieApp:
         #
         # Ao fechar, o monitoramento para completamente.
         # Nada fica rodando em segundo plano.
+
         self.root.destroy()
 
 
