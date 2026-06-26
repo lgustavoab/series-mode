@@ -361,6 +361,10 @@ class ModoSerieApp:
         )
         self.var_acao_final = tk.StringVar(value=str(self.config_salva["acao_final"]))
 
+        # Guarda os campos de configuração para bloquear/liberar
+        # durante o monitoramento.
+        self.campos_configuracao = []
+
         self.criar_interface()
 
         # O loop fica rodando, mas só monitora quando self.ativo = True.
@@ -429,6 +433,7 @@ class ModoSerieApp:
             width=17,
         )
         self.combo_acao.grid(row=3, column=1, sticky="w", padx=8, pady=8)
+        self.campos_configuracao.append(self.combo_acao)
 
         self.check_modo_teste = ttk.Checkbutton(
             frame_config,
@@ -443,6 +448,7 @@ class ModoSerieApp:
             padx=10,
             pady=(8, 12),
         )
+        self.campos_configuracao.append(self.check_modo_teste)
 
         # Botões principais ficam antes do status.
         # Assim eles continuam visíveis depois que o monitoramento inicia.
@@ -528,6 +534,9 @@ class ModoSerieApp:
         )
         entrada.grid(row=linha, column=1, sticky="w", padx=8, pady=8)
 
+        # Guardamos o campo para conseguir bloquear/liberar depois.
+        self.campos_configuracao.append(entrada)
+
         ttk.Label(frame, text=unidade).grid(
             row=linha,
             column=2,
@@ -535,6 +544,19 @@ class ModoSerieApp:
             padx=4,
             pady=8,
         )
+
+    def definir_campos_configuracao(self, habilitado: bool):
+        # Bloqueia ou libera os campos de configuração.
+        #
+        # Enquanto o monitoramento está ativo, os campos ficam bloqueados
+        # para evitar confusão entre o que aparece na tela e o que o programa
+        # realmente está usando internamente.
+
+        for campo in self.campos_configuracao:
+            if isinstance(campo, ttk.Combobox):
+                campo.config(state="readonly" if habilitado else "disabled")
+            else:
+                campo.config(state="normal" if habilitado else "disabled")
 
     # =====================================================
     # VALIDAÇÃO E CONTROLE
@@ -619,6 +641,7 @@ class ModoSerieApp:
 
         self.botao_iniciar.config(state="disabled")
         self.botao_cancelar.config(state="normal")
+        self.definir_campos_configuracao(False)
 
         self.status.config(
             text=(
@@ -647,6 +670,7 @@ class ModoSerieApp:
 
         self.botao_iniciar.config(state="normal")
         self.botao_cancelar.config(state="disabled")
+        self.definir_campos_configuracao(True)
 
         self.status.config(
             text="Monitoramento cancelado. Clique em Iniciar monitoramento para ativar novamente."
@@ -755,7 +779,24 @@ class ModoSerieApp:
                     "Como o modo teste está ativado, nada foi executado."
                 ),
             )
+
+            self.ativo = False
+            self.aviso_ativo = False
             self.resetar_contadores()
+
+            self.botao_iniciar.config(state="normal")
+            self.botao_cancelar.config(state="disabled")
+            self.definir_campos_configuracao(True)
+
+            self.status.config(
+                text=(
+                    "Teste concluído. Ajuste as configurações ou clique em "
+                    "Iniciar monitoramento novamente."
+                )
+            )
+            self.info.config(text="")
+            self.atualizar_observacao_modo()
+
             self.root.after(1000, self.loop)
             return
 
