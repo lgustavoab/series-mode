@@ -645,10 +645,11 @@ class ModoSerieApp:
 
         self.status.config(
             text=(
-                "Monitoramento iniciado. "
-                "Aguardando áudio para armar o sistema..."
+                "Monitoramento iniciado.\n"
+                "Aguardando áudio inicial para armar o sistema."
             )
         )
+        self.info.config(text="")
 
         self.atualizar_observacao_modo()
 
@@ -722,8 +723,9 @@ class ModoSerieApp:
 
         self.status.config(
             text=(
-                f"O PC será colocado em ação de '{acao}' em breve. "
-                "Mexa no mouse/teclado ou clique em Cancelar monitoramento para cancelar."
+                f"Atenção: {acao} em breve.\n"
+                "Mexa no mouse/teclado, volte o áudio ou clique em "
+                "Cancelar monitoramento para cancelar."
             )
         )
 
@@ -750,7 +752,7 @@ class ModoSerieApp:
                 f"Executando/simulando em: {self.contagem_aviso} segundos\n"
                 f"Pico de áudio: {pico:.5f}\n"
                 f"Sem mouse/teclado: {self.formatar_tempo(sem_interacao)}\n"
-                f"Modo teste: {self.modo_teste}"
+                f"Modo: {self.texto_modo_atual()}"
             )
         )
 
@@ -821,6 +823,102 @@ class ModoSerieApp:
         )
 
     # =====================================================
+    # STATUS VISUAL
+    # =====================================================
+
+    def texto_modo_atual(self) -> str:
+        # Retorna o modo atual em texto amigável para a interface.
+
+        return "Teste" if self.modo_teste else "Real"
+
+    def atualizar_status_monitoramento(
+        self,
+        *,
+        tem_audio: bool,
+        pico: float,
+        sem_interacao: float,
+        tempo_silencio_atual: float,
+    ):
+        # Atualiza a mensagem principal e os detalhes do status.
+        #
+        # A mensagem principal deve ser fácil de entender.
+        # Os detalhes ficam abaixo para diagnóstico e acompanhamento.
+
+        tempo_configurado = self.tempo_sem_audio_para_desligar
+        tempo_restante = max(0, tempo_configurado - tempo_silencio_atual)
+
+        if not self.armado:
+            progresso_audio = min(
+                self.audio_detectado_por,
+                TEMPO_AUDIO_PARA_ARMAR,
+            )
+
+            mensagem_principal = (
+                "Aguardando áudio inicial.\n"
+                f"Dê play em um vídeo/música por pelo menos {TEMPO_AUDIO_PARA_ARMAR} "
+                "segundos para armar o monitoramento."
+            )
+
+            detalhes = (
+                f"Progresso para armar: {self.formatar_tempo(progresso_audio)} / "
+                f"{self.formatar_tempo(TEMPO_AUDIO_PARA_ARMAR)}\n"
+                f"Pico de áudio: {pico:.5f}\n"
+                f"Sem mouse/teclado: {self.formatar_tempo(sem_interacao)}\n"
+                f"Ação final: {self.acao_final}\n"
+                f"Modo: {self.texto_modo_atual()}"
+            )
+
+        elif tem_audio:
+            mensagem_principal = (
+                "Monitoramento armado.\n"
+                "Áudio detectado. Enquanto houver som, nenhuma contagem será iniciada."
+            )
+
+            detalhes = (
+                f"Pico de áudio: {pico:.5f}\n"
+                f"Sem mouse/teclado: {self.formatar_tempo(sem_interacao)}\n"
+                "Tempo sem áudio: 00:00\n"
+                f"Tempo configurado: {self.formatar_tempo(tempo_configurado)}\n"
+                f"Ação final: {self.acao_final}\n"
+                f"Modo: {self.texto_modo_atual()}"
+            )
+
+        elif self.inicio_silencio is not None:
+            mensagem_principal = (
+                "Sem áudio detectado.\n"
+                f"Ação final em {self.formatar_tempo(tempo_restante)}, "
+                "se o áudio não voltar e você não mexer no PC."
+            )
+
+            detalhes = (
+                f"Pico de áudio: {pico:.5f}\n"
+                f"Sem mouse/teclado: {self.formatar_tempo(sem_interacao)}\n"
+                f"Tempo sem áudio: {self.formatar_tempo(tempo_silencio_atual)} / "
+                f"{self.formatar_tempo(tempo_configurado)}\n"
+                f"Ação final: {self.acao_final}\n"
+                f"Modo: {self.texto_modo_atual()}"
+            )
+
+        else:
+            mensagem_principal = (
+                "Áudio parado, mas aguardando inatividade.\n"
+                "Quando o PC ficar sem uso pelo tempo configurado, a contagem começa."
+            )
+
+            detalhes = (
+                f"Pico de áudio: {pico:.5f}\n"
+                f"Sem mouse/teclado: {self.formatar_tempo(sem_interacao)} / "
+                f"{self.formatar_tempo(self.tempo_sem_mouse_teclado)}\n"
+                "Tempo sem áudio: 00:00\n"
+                f"Tempo configurado: {self.formatar_tempo(tempo_configurado)}\n"
+                f"Ação final: {self.acao_final}\n"
+                f"Modo: {self.texto_modo_atual()}"
+            )
+
+        self.status.config(text=mensagem_principal)
+        self.info.config(text=detalhes)
+
+    # =====================================================
     # LOOP PRINCIPAL
     # =====================================================
 
@@ -860,12 +958,6 @@ class ModoSerieApp:
 
             if not self.armado and self.audio_detectado_por >= TEMPO_AUDIO_PARA_ARMAR:
                 self.armado = True
-                self.status.config(
-                    text=(
-                        "Áudio detectado. Monitoramento armado. "
-                        "Quando o áudio parar, o contador começa."
-                    )
-                )
         else:
             self.audio_detectado_por = 0.0
 
@@ -885,26 +977,11 @@ class ModoSerieApp:
         if self.inicio_silencio is not None:
             tempo_silencio_atual = agora - self.inicio_silencio
 
-        if not self.armado:
-            situacao = "Aguardando áudio para armar"
-        elif tem_audio:
-            situacao = "Áudio tocando"
-        elif self.inicio_silencio is not None:
-            situacao = "Sem áudio. Contando para ação final"
-        else:
-            situacao = "Sem áudio, mas aguardando inatividade"
-
-        self.info.config(
-            text=(
-                f"Status: {situacao}\n"
-                f"Pico de áudio: {pico:.5f}\n"
-                f"Sem mouse/teclado: {self.formatar_tempo(sem_interacao)}\n"
-                f"Tempo sem áudio contado: {self.formatar_tempo(tempo_silencio_atual)}\n"
-                f"Tempo configurado: {self.formatar_tempo(self.tempo_sem_audio_para_desligar)}\n"
-                f"Ação final: {self.acao_final}\n"
-                f"Modo teste: {self.modo_teste}\n"
-                f"Armado: {self.armado}"
-            )
+        self.atualizar_status_monitoramento(
+            tem_audio=tem_audio,
+            pico=pico,
+            sem_interacao=sem_interacao,
+            tempo_silencio_atual=tempo_silencio_atual,
         )
 
         self.root.after(1000, self.loop)
