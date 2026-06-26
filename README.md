@@ -1,71 +1,207 @@
 # Series Mode
 
-Programa simples para Windows que monitora o áudio do computador e desliga o PC automaticamente após um período sem áudio e sem interação do usuário.
+Programa para Windows que monitora áudio e inatividade do usuário para desligar, suspender ou hibernar o computador automaticamente após um período sem som e sem interação.
 
-A ideia principal é usar o programa antes de dormir assistindo séries, vídeos ou filmes. Enquanto houver áudio tocando, o programa não conta o tempo. Quando o áudio para, ele começa a contar. Se o computador também estiver sem uso por mouse ou teclado, o programa exibe um aviso e depois desliga o PC.
+## Por que este projeto existe
+
+Este projeto nasceu de um problema real.
+
+Eu costumo assistir séries e vídeos pelo computador, enviando a imagem para a TV. O problema é que, quando eu acabava dormindo, o computador continuava ligado por horas.
+
+As soluções padrão não resolviam bem o meu caso:
+
+* O modo de suspensão do Windows podia suspender o computador mesmo enquanto eu ainda estava assistindo.
+* O Agendador de Tarefas era rígido demais, porque dependia de um horário fixo.
+* Eu queria uma solução que entendesse melhor o contexto: se ainda existe áudio tocando e se eu ainda estou usando o mouse ou teclado.
+
+Por isso criei o Series Mode.
+
+A ideia é simples: o programa só age quando o áudio para e o computador fica sem interação por um tempo configurado.
+
+## O que o programa faz
+
+O Series Mode monitora o áudio do dispositivo padrão de saída do Windows e também verifica há quanto tempo o usuário não mexe no mouse ou teclado.
+
+Quando o programa identifica que:
+
+1. já houve áudio tocando por alguns segundos;
+2. o áudio parou;
+3. o computador está sem uso por mouse/teclado;
+4. o tempo configurado sem áudio foi atingido;
+
+ele exibe um aviso final e, se nada for cancelado, executa a ação escolhida.
+
+As ações disponíveis são:
+
+* Desligar
+* Suspender
+* Hibernar
+
+Também existe um modo teste para simular a ação sem realmente desligar ou suspender o computador.
+
+## Como funciona
+
+O fluxo principal é:
+
+1. O usuário abre o programa antes de assistir.
+2. Configura os tempos desejados.
+3. Clica em **Iniciar monitoramento**.
+4. O programa aguarda detectar áudio por alguns segundos para se armar.
+5. Enquanto houver áudio, nada acontece.
+6. Quando o áudio para, o programa começa a observar a inatividade.
+7. Se o computador continuar sem áudio e sem interação, a contagem é iniciada.
+8. Antes da ação final, o programa exibe um aviso.
+9. Se o áudio voltar, se o usuário mexer no mouse/teclado ou cancelar o monitoramento, a ação é cancelada.
 
 ## Funcionalidades
 
-- Monitora o áudio do dispositivo padrão do Windows.
-- Detecta ausência de áudio.
-- Detecta inatividade de mouse e teclado.
-- Exibe aviso antes do desligamento.
-- Possui modo teste para simular o desligamento sem desligar o computador.
-- Pode ser pausado ou fechado a qualquer momento.
+* Monitora o pico de áudio do dispositivo padrão do Windows.
+* Detecta ausência de áudio.
+* Detecta inatividade de mouse e teclado.
+* Exige áudio inicial para armar o monitoramento.
+* Permite configurar tempo sem áudio.
+* Permite configurar tempo mínimo sem mouse/teclado.
+* Permite configurar aviso final antes da ação.
+* Permite escolher entre desligar, suspender ou hibernar.
+* Possui modo teste para simular a ação final com segurança.
+* Salva as últimas configurações usadas em `config.json`.
+* Bloqueia os campos de configuração enquanto o monitoramento está ativo.
+* Exibe status amigável sobre o que está acontecendo.
+* Permite cancelar o monitoramento a qualquer momento.
 
-## Tecnologias
+## Tecnologias utilizadas
 
-- Python
-- Tkinter
-- pycaw
-- comtypes
-- uv
+* Python
+* Tkinter
+* pycaw
+* comtypes
+* uv
 
-## Como instalar
+## Requisitos
 
-Este projeto usa `uv` para gerenciar o ambiente virtual e as dependências.
+* Windows
+* Python
+* uv
+* Saída de áudio configurada corretamente no Windows
 
-Dentro da pasta do projeto, rode:
+O programa monitora o dispositivo padrão de saída de áudio do Windows. Portanto, se você estiver usando uma TV, monitor externo ou outro dispositivo de áudio, ele precisa estar selecionado como saída padrão.
+
+## Instalação
+
+Este projeto usa `uv` para gerenciar ambiente e dependências.
+
+Clone o repositório:
+
+```powershell
+git clone https://github.com/lgustavoab/series-mode.git
+```
+
+Entre na pasta:
+
+```powershell
+cd series-mode
+```
+
+Instale as dependências:
 
 ```powershell
 uv sync
-````
+```
 
 ## Como executar
+
+Dentro da pasta do projeto, rode:
 
 ```powershell
 uv run python main.py
 ```
 
-## Configurações principais
+## Configurações disponíveis
 
-As configurações ficam no início do arquivo `main.py`:
+Na interface do programa, é possível configurar:
 
-```python
-MODO_TESTE = False
-TEMPO_SEM_AUDIO_PARA_DESLIGAR = 30 * 60
-TEMPO_SEM_MOUSE_TECLADO = 5 * 60
-TEMPO_AVISO_ANTES_DESLIGAR = 60
-LIMITE_AUDIO = 0.003
-TEMPO_AUDIO_PARA_ARMAR = 5
+### Tempo sem áudio para agir
+
+Define por quanto tempo o computador precisa ficar sem áudio antes da ação final ser considerada.
+
+Exemplo:
+
+```text
+30 minutos
 ```
+
+### Tempo mínimo sem mouse/teclado
+
+Define quanto tempo o computador precisa estar sem interação do usuário.
+
+Essa verificação evita que o programa execute uma ação enquanto o usuário ainda está acordado e usando o computador.
+
+### Aviso final antes da ação
+
+Define quantos segundos o programa deve esperar antes de executar a ação final.
+
+Durante esse aviso, a ação pode ser cancelada ao:
+
+* mexer no mouse;
+* usar o teclado;
+* voltar o áudio;
+* clicar em **Cancelar monitoramento**.
+
+### Ação final
+
+Define o que o programa deve fazer ao final da contagem:
+
+* Desligar
+* Suspender
+* Hibernar
+
+### Modo teste
+
+Quando o modo teste está ativado, nenhuma ação real é executada.
+
+O programa apenas simula o comportamento e mostra que aquele seria o momento da ação final.
+
+Esse modo é recomendado para testar as configurações antes de usar o programa em modo real.
+
+## Arquivo de configuração
+
+O programa salva automaticamente as últimas configurações usadas em um arquivo chamado:
+
+```text
+config.json
+```
+
+Esse arquivo é criado localmente na mesma pasta do `main.py`.
+
+Ele não deve ser enviado para o GitHub, porque cada usuário pode ter suas próprias configurações.
+
+Por isso, o arquivo fica no `.gitignore`.
 
 ## Atenção
 
-Com `MODO_TESTE = False`, o programa desliga o computador de verdade quando as condições são atendidas.
+Com o modo teste desativado, o programa pode desligar, suspender ou hibernar o computador de verdade.
 
-Antes de usar em modo real, teste com:
+Antes de usar em modo real, teste o comportamento com o modo teste ativado.
 
-```python
-MODO_TESTE = True
-```
+## Limitações conhecidas
 
-Assim o programa apenas mostra uma mensagem quando chegaria ao momento de desligar.
+* O programa funciona apenas no Windows.
+* O monitoramento de áudio depende do dispositivo padrão de saída do Windows.
+* A ação de suspender pode variar conforme as configurações de energia do Windows. Em alguns computadores, o comando de suspensão pode se comportar como hibernação.
+* O programa precisa estar aberto para funcionar. Ao fechar a janela, o monitoramento é encerrado.
 
-## Próximas melhorias planejadas
+## Próximas melhorias possíveis
 
-* Configurar tempo sem áudio pela interface.
-* Configurar modo teste pela interface.
-* Escolher entre desligar, suspender ou hibernar.
-* Salvar configurações em arquivo.
-* Gerar versão `.exe`.
+* Gerar versão executável `.exe`.
+* Adicionar ícone personalizado ao programa.
+* Criar atalho para a área de trabalho.
+* Melhorar o visual da interface.
+* Permitir escolher o dispositivo de áudio diretamente pela interface.
+* Adicionar opção para iniciar minimizado.
+* Adicionar logs simples de eventos.
+
+## Status do projeto
+
+O projeto já possui uma primeira versão funcional com interface gráfica, persistência de configurações, modo teste e ações reais para desligar, suspender ou hibernar.
+
+A ideia principal já está implementada: automatizar o desligamento do computador com base em ausência de áudio e inatividade real do usuário.
