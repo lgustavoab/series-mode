@@ -69,6 +69,7 @@ O fluxo principal é:
 * Exibe status amigável sobre o que está acontecendo.
 * Permite cancelar o monitoramento a qualquer momento.
 * Possui código modularizado em uma estrutura MVC leve.
+* Pode ser empacotado como executável para Windows com PyInstaller.
 
 ## Tecnologias utilizadas
 
@@ -77,6 +78,7 @@ O fluxo principal é:
 * pycaw
 * comtypes
 * uv
+* PyInstaller
 
 ## Arquitetura do projeto
 
@@ -203,13 +205,53 @@ Instale as dependências:
 uv sync
 ```
 
-## Como executar
+## Como executar em modo desenvolvimento
 
 Dentro da pasta do projeto, rode:
 
 ```powershell
 uv run python main.py
 ```
+
+## Como gerar o executável
+
+O projeto usa PyInstaller para gerar uma versão executável para Windows.
+
+Para gerar o executável em modo pasta, rode:
+
+```powershell
+uv run pyinstaller --windowed --name "Series Mode" main.py
+```
+
+Após o build, o executável será criado em:
+
+```text
+dist/Series Mode/Series Mode.exe
+```
+
+Para distribuir o programa, envie a pasta inteira:
+
+```text
+dist/Series Mode/
+```
+
+Essa pasta contém o executável e os arquivos necessários para funcionamento.
+
+## Executando a versão empacotada
+
+Depois de gerar o executável, abra:
+
+```text
+dist/Series Mode/Series Mode.exe
+```
+
+Na primeira execução, o programa poderá criar automaticamente o arquivo:
+
+```text
+config.json
+```
+
+Esse arquivo guarda as últimas configurações usadas pelo usuário.
 
 ## Configurações disponíveis
 
@@ -268,7 +310,7 @@ config.json
 
 Ao executar pelo Python, esse arquivo é criado na raiz do projeto.
 
-Quando o programa for empacotado como `.exe`, o arquivo de configuração deverá ficar ao lado do executável.
+Quando o programa é empacotado como `.exe`, o arquivo de configuração é criado ao lado do executável.
 
 Esse arquivo não deve ser enviado para o GitHub, porque cada usuário pode ter suas próprias configurações.
 
@@ -287,12 +329,14 @@ Antes de usar em modo real, teste o comportamento com o modo teste ativado.
 * A ação de suspender pode variar conforme as configurações de energia do Windows. Em alguns computadores, o comando de suspensão pode se comportar como hibernação.
 * O programa precisa estar aberto para funcionar. Ao fechar a janela, o monitoramento é encerrado.
 * Atualmente, o dispositivo de áudio monitorado é sempre o dispositivo padrão do Windows.
+* A versão empacotada em modo pasta precisa ser distribuída com todos os arquivos gerados dentro de `dist/Series Mode/`.
 
 ## Próximas melhorias possíveis
 
-* Gerar versão executável `.exe`.
 * Adicionar ícone personalizado ao programa.
+* Gerar uma versão em arquivo único com `--onefile`.
 * Criar atalho para a área de trabalho.
+* Criar uma release no GitHub com o executável compactado.
 * Polir ainda mais o visual da interface.
 * Permitir escolher o dispositivo de áudio diretamente pela interface.
 * Adicionar opção para iniciar minimizado.
@@ -306,3 +350,5 @@ O projeto já possui uma primeira versão funcional com interface gráfica, pers
 A ideia principal já está implementada: automatizar o desligamento do computador com base em ausência de áudio e inatividade real do usuário.
 
 O código também já foi refatorado para uma estrutura modular em MVC leve, separando interface, controller, configuração, monitoramento de áudio, inatividade e ações do sistema.
+
+Além disso, o projeto já pode ser empacotado como executável para Windows em modo pasta usando PyInstaller.
