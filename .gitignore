@@ -1,0 +1,31 @@
+# Ambiente virtual local
+.venv/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Arquivos de build / empacotamento
+build/
+dist/
+*.egg-info/
+*.spec
+
+# Arquivos de ambiente
+.env
+.env.*
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# Cache de ferramentas
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Arquivos temporários
+*.log
+*.tmp
+
