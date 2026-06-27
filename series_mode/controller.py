@@ -4,6 +4,11 @@ import tkinter as tk
 from series_mode.audio_monitor import MonitorAudio
 from series_mode.config import carregar_configuracoes_salvas, salvar_configuracoes
 from series_mode.constants import LIMITE_AUDIO, TEMPO_AUDIO_PARA_ARMAR
+from series_mode.event_log import (
+    carregar_ultimo_evento,
+    formatar_ultimo_evento,
+    salvar_evento,
+)
 from series_mode.idle_monitor import tempo_sem_mouse_teclado
 from series_mode.power_actions import executar_acao_final
 from series_mode.utils import formatar_tempo
@@ -44,6 +49,10 @@ class SeriesModeController:
         # Se o arquivo não existir, usa DEFAULT_CONFIG.
         self.config_salva = carregar_configuracoes_salvas()
 
+        # Carrega o último evento registrado em last_event.json.
+        ultimo_evento = carregar_ultimo_evento()
+        ultimo_evento_texto = formatar_ultimo_evento(ultimo_evento)
+
         # Configurações que serão lidas da interface ao iniciar.
         self.tempo_sem_audio_para_desligar = (
             float(self.config_salva["tempo_sem_audio_minutos"]) * 60
@@ -60,10 +69,43 @@ class SeriesModeController:
             root=self.root,
             controller=self,
             config_salva=self.config_salva,
+            ultimo_evento_texto=ultimo_evento_texto,
         )
 
         # O loop fica rodando, mas só monitora quando self.ativo = True.
         self.loop()
+
+    # =====================================================
+    # REGISTRO DE EVENTOS
+    # =====================================================
+
+    def registrar_evento(
+        self,
+        *,
+        status: str,
+        mensagem: str,
+    ):
+        # Salva o último evento relevante e atualiza a interface.
+        #
+        # O arquivo last_event.json guarda somente o último evento.
+        # Ele não cria histórico completo.
+
+        salvou = salvar_evento(
+            status=status,
+            acao_final=self.acao_final,
+            modo_teste=self.modo_teste,
+            mensagem=mensagem,
+        )
+
+        if salvou:
+            self.atualizar_ultimo_evento_na_interface()
+
+    def atualizar_ultimo_evento_na_interface(self):
+        # Recarrega o último evento salvo e mostra na interface.
+
+        ultimo_evento = carregar_ultimo_evento()
+        ultimo_evento_texto = formatar_ultimo_evento(ultimo_evento)
+        self.view.atualizar_ultimo_evento(ultimo_evento_texto)
 
     # =====================================================
     # VALIDAÇÃO E CONTROLE
@@ -178,6 +220,14 @@ class SeriesModeController:
         # Depois de cancelar, o programa volta ao estado inicial
         # e só monitora novamente se o usuário clicar em Iniciar.
 
+        estava_em_aviso = self.aviso_ativo
+
+        if estava_em_aviso:
+            self.registrar_evento(
+                status="acao_cancelada",
+                mensagem="Ação cancelada manualmente pelo usuário durante o aviso final.",
+            )
+
         self.ativo = False
         self.aviso_ativo = False
         self.resetar_contadores()
@@ -224,6 +274,14 @@ class SeriesModeController:
         self.aviso_ativo = True
         self.contagem_aviso = self.tempo_aviso_antes_desligar
 
+        self.registrar_evento(
+            status="aviso_iniciado",
+            mensagem=(
+                "Aviso final iniciado. A ação será executada se não houver "
+                "áudio, interação ou cancelamento manual."
+            ),
+        )
+
         acao = self.acao_final.lower()
 
         self.view.atualizar_status(
@@ -246,6 +304,20 @@ class SeriesModeController:
         sem_interacao = tempo_sem_mouse_teclado()
 
         if pico >= LIMITE_AUDIO or sem_interacao < 3 or not self.ativo:
+            motivo = "houve cancelamento durante o aviso final."
+
+            if pico >= LIMITE_AUDIO:
+                motivo = "o áudio voltou durante o aviso final."
+            elif sem_interacao < 3:
+                motivo = "houve interação com mouse ou teclado durante o aviso final."
+            elif not self.ativo:
+                motivo = "o monitoramento foi interrompido durante o aviso final."
+
+            self.registrar_evento(
+                status="acao_cancelada",
+                mensagem=f"Ação cancelada porque {motivo}",
+            )
+
             self.view.atualizar_status("Ação cancelada. Monitoramento reiniciado.")
             self.resetar_contadores()
             self.root.after(1000, self.loop)
@@ -278,6 +350,11 @@ class SeriesModeController:
         #   Executa a ação escolhida na interface.
 
         if self.modo_teste:
+            self.registrar_evento(
+                status="acao_simulada",
+                mensagem="Ação simulada em modo teste. Nenhuma ação real foi executada.",
+            )
+
             self.view.mostrar_info(
                 "Series Mode - teste",
                 (
@@ -304,6 +381,11 @@ class SeriesModeController:
 
             self.root.after(1000, self.loop)
             return
+
+        self.registrar_evento(
+            status="acao_executada",
+            mensagem="Ação real disparada pelo Series Mode.",
+        )
 
         acao_executada = executar_acao_final(self.acao_final)
 

@@ -4,6 +4,9 @@
 # Configurações locais do app
 config.json
 
+# Registro local do último evento
+last_event.json
+
 # Cache do Python
 __pycache__/
 *.py[cod]

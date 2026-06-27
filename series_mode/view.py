@@ -1,8 +1,27 @@
+import sys
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox, ttk
 
 from series_mode.constants import ACOES_VALIDAS
 from series_mode.utils import formatar_valor_campo
+
+
+def caminho_recurso(caminho_relativo: str) -> str:
+    # Retorna o caminho correto de um recurso do projeto.
+    #
+    # Rodando pelo Python:
+    #   usa a pasta raiz do projeto.
+    #
+    # Rodando como executável:
+    #   usa a pasta interna criada pelo PyInstaller.
+
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    else:
+        base = Path(__file__).resolve().parent.parent
+
+    return str(base / caminho_relativo)
 
 
 # =====================================================
@@ -22,14 +41,27 @@ from series_mode.utils import formatar_valor_campo
 
 
 class SeriesModeView:
-    def __init__(self, root: tk.Tk, controller, config_salva: dict):
+    def __init__(
+        self,
+        root: tk.Tk,
+        controller,
+        config_salva: dict,
+        ultimo_evento_texto: str = "Último evento: nenhum evento anterior registrado.",
+    ):
         self.root = root
         self.controller = controller
         self.config_salva = config_salva
+        self.ultimo_evento_texto = ultimo_evento_texto
 
         self.root.title("Series Mode")
-        self.root.geometry("760x680")
-        self.root.minsize(760, 680)
+
+        try:
+            self.root.iconbitmap(caminho_recurso("assets/series_mode.ico"))
+        except tk.TclError:
+            pass
+
+        self.root.geometry("760x720")
+        self.root.minsize(760, 720)
         self.root.resizable(True, True)
 
         # Variáveis da interface.
@@ -191,6 +223,20 @@ class SeriesModeView:
         )
         self.info.pack(padx=12, pady=(4, 10))
 
+        frame_ultimo_evento = ttk.LabelFrame(self.root, text="Último evento")
+        frame_ultimo_evento.pack(padx=20, pady=8, fill="x")
+
+        self.ultimo_evento = tk.Label(
+            frame_ultimo_evento,
+            text=self.ultimo_evento_texto,
+            font=("Segoe UI", 9),
+            fg="gray",
+            wraplength=680,
+            justify="left",
+            anchor="w",
+        )
+        self.ultimo_evento.pack(padx=12, pady=10, fill="x")
+
         self.observacao = tk.Label(
             self.root,
             text="Dica: use modo teste antes de usar a ação real.",
@@ -289,6 +335,9 @@ class SeriesModeView:
 
     def limpar_info(self):
         self.info.config(text="")
+
+    def atualizar_ultimo_evento(self, texto: str):
+        self.ultimo_evento.config(text=texto)
 
     def atualizar_observacao_modo(self, *, modo_teste: bool, acao_final: str):
         # Atualiza o texto inferior da janela, indicando se está em teste ou real.

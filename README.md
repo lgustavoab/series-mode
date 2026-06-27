@@ -39,6 +39,8 @@ As ações disponíveis são:
 
 Também existe um modo teste para simular a ação sem realmente desligar, suspender ou hibernar o computador.
 
+Além disso, o programa registra o último evento relevante em um arquivo local. Assim, ao abrir o aplicativo no dia seguinte, é possível ver se o Series Mode iniciou o aviso final, simulou uma ação, executou uma ação real ou teve a ação cancelada.
+
 ## Como funciona
 
 O fluxo principal é:
@@ -52,6 +54,8 @@ O fluxo principal é:
 7. Se o computador continuar sem áudio e sem interação, a contagem é iniciada.
 8. Antes da ação final, o programa exibe um aviso.
 9. Se o áudio voltar, se o usuário mexer no mouse/teclado ou cancelar o monitoramento, a ação é cancelada.
+10. Se nada for cancelado, o programa simula ou executa a ação final configurada.
+11. O último evento é salvo localmente e exibido na próxima abertura do programa.
 
 ## Funcionalidades
 
@@ -65,10 +69,13 @@ O fluxo principal é:
 * Permite escolher entre desligar, suspender ou hibernar.
 * Possui modo teste para simular a ação final com segurança.
 * Salva as últimas configurações usadas em `config.json`.
+* Registra o último evento relevante em `last_event.json`.
+* Exibe na interface o último evento registrado.
 * Bloqueia os campos de configuração enquanto o monitoramento está ativo.
 * Exibe status amigável sobre o que está acontecendo.
 * Permite cancelar o monitoramento a qualquer momento.
 * Possui código modularizado em uma estrutura MVC leve.
+* Possui ícone personalizado para o executável e para a janela do programa.
 * Pode ser empacotado como executável para Windows com PyInstaller.
 
 ## Tecnologias utilizadas
@@ -94,11 +101,15 @@ series-mode/
 ├─ pyproject.toml
 ├─ uv.lock
 │
+├─ assets/
+│  └─ series_mode.ico
+│
 └─ series_mode/
    ├─ __init__.py
    ├─ constants.py
    ├─ utils.py
    ├─ config.py
+   ├─ event_log.py
    ├─ audio_monitor.py
    ├─ idle_monitor.py
    ├─ power_actions.py
@@ -125,6 +136,7 @@ Controla o fluxo principal da aplicação:
 * validar configurações;
 * monitorar áudio e inatividade;
 * controlar o aviso final;
+* registrar eventos;
 * executar ou simular a ação final.
 
 #### `series_mode/view.py`
@@ -137,7 +149,9 @@ Cria e atualiza:
 * botões;
 * mensagens de status;
 * informações técnicas;
-* avisos de modo teste ou modo real.
+* último evento registrado;
+* avisos de modo teste ou modo real;
+* ícone da janela do programa.
 
 #### `series_mode/config.py`
 
@@ -149,6 +163,18 @@ Cuida de:
 * salvar novas configurações;
 * validar valores;
 * aplicar valores padrão quando necessário.
+
+#### `series_mode/event_log.py`
+
+Responsável pelo arquivo `last_event.json`.
+
+Cuida de:
+
+* salvar o último evento relevante;
+* carregar o último evento salvo;
+* formatar a mensagem exibida na interface.
+
+O objetivo não é criar um histórico completo, mas manter apenas o último evento importante do programa.
 
 #### `series_mode/audio_monitor.py`
 
@@ -173,6 +199,10 @@ Guarda constantes internas do programa, como limite de áudio, tempo necessário
 #### `series_mode/utils.py`
 
 Guarda funções auxiliares usadas em diferentes partes do projeto.
+
+#### `assets/series_mode.ico`
+
+Ícone personalizado usado no executável e na janela do programa.
 
 ## Requisitos
 
@@ -217,10 +247,10 @@ uv run python main.py
 
 O projeto usa PyInstaller para gerar uma versão executável para Windows.
 
-Para gerar o executável em modo pasta, rode:
+Para gerar o executável em modo pasta, com ícone personalizado, rode:
 
 ```powershell
-uv run pyinstaller --windowed --name "Series Mode" main.py
+uv run pyinstaller --windowed --name "Series Mode" --icon "assets/series_mode.ico" --add-data "assets/series_mode.ico;assets" main.py
 ```
 
 Após o build, o executável será criado em:
@@ -245,13 +275,14 @@ Depois de gerar o executável, abra:
 dist/Series Mode/Series Mode.exe
 ```
 
-Na primeira execução, o programa poderá criar automaticamente o arquivo:
+Na primeira execução, o programa poderá criar automaticamente os arquivos locais:
 
 ```text
 config.json
+last_event.json
 ```
 
-Esse arquivo guarda as últimas configurações usadas pelo usuário.
+Esses arquivos guardam, respectivamente, as configurações do usuário e o último evento relevante registrado pelo programa.
 
 ## Configurações disponíveis
 
@@ -300,21 +331,55 @@ O programa apenas simula o comportamento e mostra que aquele seria o momento da 
 
 Esse modo é recomendado para testar as configurações antes de usar o programa em modo real.
 
-## Arquivo de configuração
+## Último evento registrado
 
-O programa salva automaticamente as últimas configurações usadas em um arquivo chamado:
+O programa exibe na interface o último evento relevante registrado.
+
+Esse recurso ajuda a verificar, ao abrir o programa posteriormente, se o Series Mode chegou a iniciar um aviso, simular uma ação, executar uma ação real ou cancelar uma ação.
+
+Os eventos possíveis incluem:
+
+* aviso final iniciado;
+* ação cancelada;
+* ação simulada em modo teste;
+* ação real executada.
+
+O registro é salvo em:
+
+```text
+last_event.json
+```
+
+Esse arquivo guarda apenas o último evento. Ele não mantém um histórico completo de uso.
+
+## Arquivos locais
+
+O programa pode criar automaticamente dois arquivos locais:
 
 ```text
 config.json
+last_event.json
 ```
+
+### `config.json`
+
+Guarda as últimas configurações usadas pelo usuário.
 
 Ao executar pelo Python, esse arquivo é criado na raiz do projeto.
 
 Quando o programa é empacotado como `.exe`, o arquivo de configuração é criado ao lado do executável.
 
-Esse arquivo não deve ser enviado para o GitHub, porque cada usuário pode ter suas próprias configurações.
+### `last_event.json`
 
-Por isso, o arquivo fica no `.gitignore`.
+Guarda o último evento relevante registrado pelo programa.
+
+Ao executar pelo Python, esse arquivo é criado na raiz do projeto.
+
+Quando o programa é empacotado como `.exe`, o arquivo de último evento é criado ao lado do executável.
+
+Esses arquivos não devem ser enviados para o GitHub, porque cada usuário pode ter suas próprias configurações e registros locais.
+
+Por isso, ambos ficam no `.gitignore`.
 
 ## Atenção
 
@@ -329,11 +394,11 @@ Antes de usar em modo real, teste o comportamento com o modo teste ativado.
 * A ação de suspender pode variar conforme as configurações de energia do Windows. Em alguns computadores, o comando de suspensão pode se comportar como hibernação.
 * O programa precisa estar aberto para funcionar. Ao fechar a janela, o monitoramento é encerrado.
 * Atualmente, o dispositivo de áudio monitorado é sempre o dispositivo padrão do Windows.
+* O arquivo `last_event.json` guarda apenas o último evento, não um histórico completo.
 * A versão empacotada em modo pasta precisa ser distribuída com todos os arquivos gerados dentro de `dist/Series Mode/`.
 
 ## Próximas melhorias possíveis
 
-* Adicionar ícone personalizado ao programa.
 * Gerar uma versão em arquivo único com `--onefile`.
 * Criar atalho para a área de trabalho.
 * Criar uma release no GitHub com o executável compactado.
@@ -345,10 +410,10 @@ Antes de usar em modo real, teste o comportamento com o modo teste ativado.
 
 ## Status do projeto
 
-O projeto já possui uma primeira versão funcional com interface gráfica, persistência de configurações, modo teste e ações reais para desligar, suspender ou hibernar.
+O projeto já possui uma primeira versão funcional com interface gráfica, persistência de configurações, modo teste, registro do último evento e ações reais para desligar, suspender ou hibernar.
 
 A ideia principal já está implementada: automatizar o desligamento do computador com base em ausência de áudio e inatividade real do usuário.
 
-O código também já foi refatorado para uma estrutura modular em MVC leve, separando interface, controller, configuração, monitoramento de áudio, inatividade e ações do sistema.
+O código também já foi refatorado para uma estrutura modular em MVC leve, separando interface, controller, configuração, registro de eventos, monitoramento de áudio, inatividade e ações do sistema.
 
-Além disso, o projeto já pode ser empacotado como executável para Windows em modo pasta usando PyInstaller.
+Além disso, o projeto já pode ser empacotado como executável para Windows em modo pasta usando PyInstaller, com ícone personalizado no executável e na janela do programa.
